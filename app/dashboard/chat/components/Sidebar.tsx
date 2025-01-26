@@ -15,7 +15,7 @@ export default function Sidebar({ conversations, selectedConversation, onSelectC
       </div>
       <ScrollArea >
         <ul>
-          {conversations.map((conversation) => (
+          {conversations.map((conversation:Conversation) => (
             <li
               key={conversation.id}
               className={`p-4 hover:bg-gray-100 cursor-pointer ${selectedConversation === conversation.id ? "bg-blue-100" : ""}`}

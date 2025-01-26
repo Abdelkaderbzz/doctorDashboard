@@ -19,6 +19,40 @@ import {
   Cell,
 } from "recharts"
 import { ArrowLeft } from "lucide-react"
+type UserProfile = {
+  id: string;
+  name: string;
+  age: number;
+  gender: string;
+  addiction: string;
+  treatmentStartDate: string; // ISO date string
+  strike: number;
+  lastLogin: string; // ISO date string
+  stepsCompleted: number[];
+  substanceType: string;
+  frequencyOfUse: string;
+  durationOfUse: string;
+  quantity: string;
+  withdrawalSymptoms: string;
+  overdoseHistory: string;
+  healthComplications: string;
+  infectiousDiseases: string;
+  triggers: string;
+  supportSystem: string;
+  highRiskBehaviors: string;
+  criminalInvolvement: string;
+  previousAttempts: string;
+  relapseHistory: string;
+  barriersToTreatment: string;
+  readinessForChange: number; // e.g., scale of 1-10
+  recoveryGoals: string;
+  perceivedBenefits: string;
+  sobrietyStreak: number; // Days
+  relapsesCount: number;
+  therapyAttendance: number; // Percentage
+  medicationAdherence: number; // Percentage
+  weeklyMoodScores: number[];
+};
 
 // Extended mock user data with 5 users
 const users = [
@@ -155,7 +189,7 @@ const users = [
     sobrietyStreak: 21,
     relapsesCount: 1,
     therapyAttendance: 80,
-    medicationAdherence: "N/A",
+    medicationAdherence: 0,
     weeklyMoodScores: [6, 7, 6, 8, 7, 7, 8],
   },
   {
@@ -196,7 +230,7 @@ const users = [
 
 export default function UserStatistics() {
   const params = useParams()
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState<UserProfile | null>(null)
 
   useEffect(() => {
     const userId = params.id
@@ -226,8 +260,8 @@ export default function UserStatistics() {
   ]
 
   const medicationData = [
-    { name: "Taken", value: user.medicationAdherence },
-    { name: "Missed", value: 100 - user.medicationAdherence },
+    { name: "Taken", value: Number(user.medicationAdherence)},
+    { name: "Missed", value: 100 - Number(user.medicationAdherence) },
   ]
 
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"]

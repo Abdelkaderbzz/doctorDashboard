@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { BarChart2, Folder } from "lucide-react";
 import Link from "next/link";
 
-interface User {
+export interface User {
   id: string;
   name: string;
   age: number;
@@ -171,7 +171,7 @@ const users: any = [
   },
 ];
 
-const addictionTypes = Array.from(
+const addictionTypes: string[] = Array.from(
   new Set(users.map((user: any) => user.addiction))
 );
 
@@ -191,7 +191,7 @@ export default function UserDataTable() {
   };
 
   const filteredUsers = users.filter(
-    (user) =>
+    (user: User) =>
       user.name.toLowerCase().includes(nameFilter.toLowerCase()) &&
       (addictionFilter === "all" ||
         addictionFilter === "" ||
@@ -217,9 +217,9 @@ export default function UserDataTable() {
           >
             <option value="">Filter by addiction type</option>
             <option value="all">All addictions</option>
-            {addictionTypes?.map((type,index) => (
-              <option key={index} value={type}>
-                {type}
+            {addictionTypes?.map((type, index) => (
+              <option key={index} value={type || index}>
+                {<>{type}</>}
               </option>
             ))}
           </select>
@@ -248,7 +248,7 @@ export default function UserDataTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => (
+              {filteredUsers.map((user:User) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.age}</TableCell>
