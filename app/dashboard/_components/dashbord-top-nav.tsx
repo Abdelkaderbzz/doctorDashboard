@@ -59,18 +59,7 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
         <div className="flex items-center justify-between w-full">
           <p className="text-lg font-semibold">dashboard</p>
           <div className="flex justify-center items-center gap-2 ml-auto ">
-            <div className="flex items-center p-[2.8px] px-[16.22px] pl-[16.8px] rounded-[20px] border border-[var(--border)]">
-              <Icons.plus
-                style={{
-                  width: "15px",
-                  height: "15px",
-                  color: "var(--tc-media-btn)",
-                }}
-              />
-              <p className="text-sm font-medium leading-[19.88px] text-[var(--tc-media-btn)]">
-                Add Media
-              </p>
-            </div>
+       
             <NotifictionIcon style={{ width: "30px", height: "30px" }} />
             {config?.auth?.enabled && <UserProfile />}
             <ModeToggle />
