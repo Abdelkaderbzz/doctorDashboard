@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    /* text color  */
+    --primary-color: #401d5b;
+    --text-secondary-color: #441671;
+    --text-gray-primary-color: #373F51;
+    --text-gray-secondary-color: #677084;
+    --tc-btn-upload-audio:#000 ; 
+    --tc-btn-finance: #ffffff;
+    --text-color-toast: #4a5264;
+    --pure-color: #000;
+    --digit-color: #401d5b;
+
+    --tc-date: #111314;
+    --tc-description-method-card: #211f37;
+    --tc-description-method-card-sub-title: #4b5563;
+    --tc-white-button:  #401D5B;
+    --tc-purple-button: #FFFFFF;
+    --tc-create-article: #000000;
+    --tc-media-btn: #373F51;
+    /* background  */
+    --bg-toast: #f5f6f9;
+    --bg-btn-finance: #401d5b;
+    --bg-btn-billing: #e0e7ff;
+    --bg-transaction-card: #FBF8FC;
+    --bg-btn-upload-audio : #E2E8F0;
+    --bg-btn-white-button: #F5F6F9;
+    --bg-btn-purple-button: #401D5B;
+    /* boder  */
+    --border: #d0d4dc;
+    --border-toast: #f5f6f9;
+    --border-btn-transcription: #401D5B;
+    --border-dashboard-stats: #D0D4DC;
+    --border-btn-upload-audio: #64748B;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+  }
+
+  .dark {
+    --background: 252, 60%, 5%, 1;
+    --border-button: hsla(252, 14%, 61%, 1);
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    /* text color  */
+    --primary-color: #f7f7f7;
+    --text-secondary-color: #E0D2EF;
+    --text-gray-primary-color: #EEEEEE;
+    --text-gray-secondary-color: #677084;
+    --tc-btn-finance: #140f27;
+    --tc-btn-upload-audio:#F8F0FF ; 
+    --text-color-toast: #fdfcfc;
+    --pure-color: #ffffff; 
+    --digit-color: #f8f0ff;
+    --tc-date: #f7f7f7;
+    --tc-description-method-card: #f8f0ff;
+    --tc-description-method-card-sub-title: #f2f8ff;
+    --tc-white-button: #fff;
+    --tc-purple-button: #FFFFFF;
+    --tc-create-article: #fff;
+    --tc-media-btn: #eee;
+    /* background  */
+    --bg-toast: #080514;
+    --bg-btn-finance: #f8f0ff;
+    --bg-btn-billing: #e0e7ff;
+    --bg-transaction-card:  #443E5B;
+    --bg-btn-upload-audio : #140F27;
+    --bg-btn-white-button: #140F27;
+    --bg-btn-purple-button: #401D5B;
+    /* boder  */
+    --border: #443e5b;
+    --border-toast: #252031;
+    --border-btn-transcription: #401D5B;
+    --border-dashboard-stats: #938DA9;
+    --border-btn-upload-audio: #F8F0FF;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    --text-primary-color: hsla(0, 0%, 93%, 1);
+    --text-secondary-color: hsla(221, 12%, 46%, 1);
+    --text-gray-gray: #888f9d;
+    --bg-card-finance: #140f28;
+    --table-bg-file: #110e1d;
+
+    --text-primary-size: 14px;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

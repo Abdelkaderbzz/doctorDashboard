@@ -1,0 +1,329 @@
+# CI Variables they have to be defined in Group or Project
+#
+# SSH_PRIVATE_KEY:
+#   should contain a generated ssh private key without a passphrase
+#   run locally `ssh-keygen`
+#   copy the content of the generated private key file to this CI variable
+#   copy the content of the generated public key file to all deployment servers to
+#   '~/.ssh/authorized_keys'
+#   remove the private key file
+#   @see https://docs.gitlab.com/ee/ci/ssh_keys/#how-it-works
+#
+# SSH_KNOWN_HOSTS:
+#   should contain a list of all deployment servers
+#   get keys one by one with `ssh-keyscan <host>`
+#   if it's possible run this direct on the host
+#   @see https://docs.gitlab.com/ee/ci/ssh_keys/#verifying-the-ssh-host-keys
+#
+# STAGING_HOST:
+#   should contain the hostname of the deployment host for the staging environment
+#
+# STAGING_HOST_PASS_AUTH:
+#   should contain the master key of the `pass` storage where your
+#   docker registry credentials are be stored on the staging host
+#
+# API_BAS_URL:
+#   should contain the base url of the backend/API
+#
+
+variables:
+  BUILD_NAME: ${CI_PROJECT_NAME}-${CI_PIPELINE_IID}
+  DEPLOY_DIR: /opt/deploy-files
+
+.export-package-values: &get-package-values
+  - export PACKAGE_NAME=$(grep name package.json | head -1 | awk '{ print $2 }' | sed 's/[\", ]//g')
+  - export PACKAGE_VERSION=$(grep version package.json | head -1 | awk '{ print $2 }' | sed 's/[\", ]//g')
+
+
+.node:
+  image: node:20-alpine
+  before_script:
+    - yarn install
+
+# https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#tls-enabled
+# setup tls certs: https://gist.github.com/Stono/7e6fed13cfd79598eb15
+# https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#using-docker-caching
+.docker:
+  image: docker:stable
+  services:
+    - docker:stable-dind
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: '/certs'
+  before_script:
+    - echo ${CI_REGISTRY_PASSWORD} | docker login --username ${CI_REGISTRY_USER} --password-stdin ${CI_REGISTRY}
+
+.ssh:
+  image: alpine:3.11
+  before_script:
+    - apk update
+    - apk add openssh-client
+    - eval $(ssh-agent -s)
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - cp "${SSH_KNOWN_HOSTS}" ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+    - chmod 400 "${SSH_PRIVATE_KEY}"
+    - ssh-add "${SSH_PRIVATE_KEY}"
+
+.create_deploy_files: # needs STAGE, TARGET_HOST_PASS_AUTH, DEPLOY_DIR as environment variables
+  image: fasibio/ci-env2file-docker
+  dependencies: []
+  script:
+    - *get-package-values
+    - export TARGET_DIR=${DEPLOY_DIR}/${PACKAGE_NAME}/${STAGE}
+    - export SERVICE_NAME=${PACKAGE_NAME}
+    - export DOCKER_IMAGE=${CI_REGISTRY_IMAGE}:${IMAGE_TAG}
+    - env2file deploy.docker-compose.yml docker-compose-${STAGE}-${BUILD_NAME}.yml
+    - >
+      echo \
+        "export TERM=xterm-256color
+         echo ${TARGET_HOST_PASS_AUTH} | gpg \
+           --pinentry-mode loopback \
+           --passphrase-fd 0 \
+           --yes \
+           --decrypt \
+           ~/.password-store/docker-credential-helpers/docker-pass-initialized-check.gpg \
+         || { echo -e '\e[31mCredential store could not be unlocked!\e[0m'; exit 1; }
+
+         COMPOSE_FILE=${TARGET_DIR}/${BUILD_NAME}.yml
+         docker compose -f \$COMPOSE_FILE down --rmi all --volumes
+         echo ${CI_DEPLOY_PASSWORD} | docker login -u ${CI_DEPLOY_USER} --password-stdin ${CI_REGISTRY}
+         docker compose -f \$COMPOSE_FILE up --detach --no-build --force-recreate
+         docker logout ${CI_REGISTRY}
+
+         COUNTER=0
+         until test \"\$(docker compose -f \$COMPOSE_FILE ps -q | head -n 1)\" != \"\"; \
+         do
+           test \$COUNTER -ge 3 && exit 1;
+           echo '\e[33mContainer is not created...\e[0m';
+           ((COUNTER=COUNTER+1));
+           sleep 0.5;
+         done
+
+         ID=\$(docker compose -f \$COMPOSE_FILE ps -q | head -n 1)
+         echo '\e[92mContainer is created!\e[0m'
+
+         until test \"\$(docker inspect --format {{.State.Health.Status}} \$ID)\" = \"healthy\" || \
+               test \"\$(docker inspect --format {{.State.Status}} \$ID)\" = \"exited\"; \
+         do
+           sleep 5s;
+           printf '\e[33mContainer is %s...\e[0m\n' \$(docker inspect --format {{.State.Health.Status}} \$ID);
+         done
+
+         test \
+           \"\$(docker inspect --format {{.State.Status}} \$ID)\" = \"exited\" \
+         &&  { echo -e '\e[31mNew version could not be deployed!\e[0m'; \
+               docker compose -f \$COMPOSE_FILE logs --tail 10; \
+               exit 1; } \
+         || echo '\e[92mContainer is healthy!\e[0m'
+
+         test \
+           \"\$(docker compose -f \$COMPOSE_FILE exec -T ${PACKAGE_NAME} \
+             /bin/sh -c 'echo -n \${PIPELINE_ID:=NO_VALUE}')\" \
+           = \"${CI_PIPELINE_ID}\" \
+         && echo '\e[92mNew version deployed successfully!\e[0m' \
+         || { echo '\e[31mNew version could not be deployed!\e[0m'; exit 1; } \
+         " > deploy-${STAGE}-${BUILD_NAME}.sh
+  artifacts:
+    when: on_success
+    expire_in: 30d
+    name: deploy-files-${STAGE}-${BUILD_NAME}
+    paths:
+      - docker-compose-${STAGE}-${BUILD_NAME}.yml
+      - deploy-${STAGE}-${BUILD_NAME}.sh
+
+
+stages:
+  - test
+  - build
+  - build-docker
+  - deploy-staging
+  - deploy-production
+
+# --------------------------- test ----------------------------- #
+testLint:
+  only:
+    - staging
+    - main
+  stage: test
+  extends: .node
+  script:
+    - yarn run lint
+
+testUnit:
+  only:
+    - staging
+    - main
+  stage: test
+  extends: .node
+  script:
+    - yarn run test:unit:cov
+  coverage: /All files[^|]*\|[^|]*\s+([\d\.]+)/
+  artifacts:
+    when: on_success
+    name: coverage-${BUILD_NAME}
+    expire_in: 7d
+    paths:
+      - coverage/
+    reports:
+      junit: coverage/junit.xml
+
+# ---------------------- build packages ------------------------ #
+buildStagingPackage:
+  only:
+    - staging
+  stage: build
+  extends: .node
+  dependencies: []
+  environment:
+    name: staging
+  variables:
+    API_BASE: ${API_BASE_URL}
+  script:
+    - yarn build --production
+  artifacts:
+    when: on_success
+    expire_in: 24h
+    name: ${BUILD_NAME}
+    paths:
+      - dist/
+
+buildProdPackage:
+  only:
+    - main
+  stage: build
+  extends: .node
+  dependencies: []
+  environment:
+    name: production
+  variables:
+    API_BASE: ${API_BASE_URL}
+  script:
+    - yarn build --production
+  artifacts:
+    when: on_success
+    expire_in: 24h
+    name: ${BUILD_NAME}
+    paths:
+      - dist/
+
+# ----------------------- build images ------------------------- #
+buildAndPushStagingImage:
+  only:
+    - staging
+  stage: build-docker
+  extends: .docker
+  dependencies:
+    - buildStagingPackage
+  variables:
+    DOCKER_BUILDKIT: 1
+  script:
+    - *get-package-values
+    - >
+      docker build \
+        --cache-from alpine:3.18 \
+        --cache-from node:20-alpine \
+        --cache-from ${CI_REGISTRY_IMAGE}:staging \
+        --build-arg commit_sha=${CI_COMMIT_SHA} \
+        --build-arg pipeline_id=${CI_PIPELINE_ID} \
+        --tag ${CI_REGISTRY_IMAGE}:${PACKAGE_VERSION} .
+    - docker tag ${CI_REGISTRY_IMAGE}:${PACKAGE_VERSION} ${CI_REGISTRY_IMAGE}:staging
+    - docker push ${CI_REGISTRY_IMAGE}:staging
+
+buildAndPushProdImage:
+  only:
+    - main
+  stage: build-docker
+  extends: .docker
+  dependencies:
+    - buildProdPackage
+  variables:
+    DOCKER_BUILDKIT: 1
+  script:
+    - *get-package-values
+    - >
+      docker build \
+        --cache-from alpine:3.18 \
+        --cache-from node:20-alpine \
+        --cache-from ${CI_REGISTRY_IMAGE}:latest \
+        --build-arg commit_sha=${CI_COMMIT_SHA} \
+        --build-arg pipeline_id=${CI_PIPELINE_ID} \
+        --tag ${CI_REGISTRY_IMAGE}:${PACKAGE_VERSION} .
+    - docker tag ${CI_REGISTRY_IMAGE}:${PACKAGE_VERSION} ${CI_REGISTRY_IMAGE}:latest
+    - docker push ${CI_REGISTRY_IMAGE}:latest
+
+# -------------------- create deploy files --------------------- #
+createStagingDeployFiles:
+  only:
+    - staging
+  stage: build-docker
+  extends: .create_deploy_files
+  environment:
+    name: staging
+  variables:
+    STAGE: staging
+    TARGET_HOST_PASS_AUTH: ${STAGING_HOST_PASS_AUTH}
+    IMAGE_TAG: staging
+
+createProdDeployFiles:
+  only:
+    - main
+  stage: build-docker
+  extends: .create_deploy_files
+  environment:
+    name: production
+  variables:
+    STAGE: production
+    TARGET_HOST_PASS_AUTH: ${PROD_HOST_PASS_AUTH}
+    IMAGE_TAG: latest
+
+# --------------------------  deploy --------------------------- #
+# deployStaging:
+#   only:
+#     - staging
+#   stage: deploy-staging
+#   extends: .ssh
+#   dependencies:
+#     - createStagingDeployFiles
+#   environment:
+#     name: staging
+#     # on_stop: stopOnStagingServer
+#   variables:
+#     GIT_STRATEGY: fetch
+#     STAGE: staging
+#     TARGET_HOST: ${STAGING_HOST}
+#   script:
+#     - *get-package-values
+#     - export TARGET_DIR=${DEPLOY_DIR}/${PACKAGE_NAME}/${STAGE}
+#     - echo "deploy to ${TARGET_HOST}"
+#     - ssh ${TARGET_HOST} "mkdir -p ${TARGET_DIR}"
+#     - scp docker-compose-${STAGE}-${BUILD_NAME}.yml ${TARGET_HOST}:${TARGET_DIR}/${BUILD_NAME}.yml
+#     - scp deploy-${STAGE}-${BUILD_NAME}.sh ${TARGET_HOST}:${TARGET_DIR}/${BUILD_NAME}.sh
+#     - ssh ${TARGET_HOST} "chmod -R 755 ${DEPLOY_DIR}"
+#     - ssh ${TARGET_HOST} "cd ${TARGET_DIR} && sudo -u app /usr/bin/sh ./${BUILD_NAME}.sh"
+
+# deployProd:
+#   only:
+#     - main
+#   stage: deploy-production
+#   extends: .ssh
+#   dependencies:
+#     - createProdDeployFiles
+#   environment:
+#     name: production
+#     # on_stop: stopOnStagingServer
+#   variables:
+#     GIT_STRATEGY: fetch
+#     STAGE: production
+#     TARGET_HOST: ${PROD_HOST}
+#   script:
+#     - *get-package-values
+#     - export TARGET_DIR=${DEPLOY_DIR}/${PACKAGE_NAME}/${STAGE}
+#     - echo "deploy to ${TARGET_HOST}"
+#     - ssh ${TARGET_HOST} "mkdir -p ${TARGET_DIR}"
+#     - scp docker-compose-${STAGE}-${BUILD_NAME}.yml ${TARGET_HOST}:${TARGET_DIR}/${BUILD_NAME}.yml
+#     - scp deploy-${STAGE}-${BUILD_NAME}.sh ${TARGET_HOST}:${TARGET_DIR}/${BUILD_NAME}.sh
+#     - ssh ${TARGET_HOST} "chmod -R 755 ${DEPLOY_DIR}"
+#     - ssh ${TARGET_HOST} "cd ${TARGET_DIR} && sudo -u app /usr/bin/sh ./${BUILD_NAME}.sh"
+
